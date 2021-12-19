@@ -142,9 +142,9 @@ class transE():
                 batch_relations[relation] += grad_neg
 
         for entity in batch_entities.keys():
-            self.entities[entity] = batch_entities[entity]
+            self.entities[entity] = self.norm(batch_entities[entity])
         for relation in batch_relations.keys():
-            self.relations[relation] = batch_relations[relation]
+            self.relations[relation] = self.norm(batch_relations[relation])
 
     def save(self, filename):
         data = [self.entities, self.relations]
