@@ -4,6 +4,7 @@ from os import stat
 import time
 import random
 import numpy as np
+from numpy.random.mtrand import rand
 
 from data import load_entity_relation
 
@@ -67,12 +68,14 @@ class transH():
         return vector/np.linalg.norm(vector, ord=2)
 
     @staticmethod
-    def project(a:np.array,b:np.array) -> np.array:
-        return a - np.dot(a,b)*b
+    def project(a: np.array, b: np.array) -> np.array:
+        return a - np.dot(a, b)*b
 
     def test_distance_score(self, head, relation, tail) -> float:
-        head_hyper = transH.project(self.entities[head],self.relations[relation])
-        tail_hyper = transH.project(self.entities[tail],self.relations[relation])
+        head_hyper = transH.project(
+            self.entities[head], self.relations[relation])
+        tail_hyper = transH.project(
+            self.entities[tail], self.relations[relation])
         return np.sum(np.square(head_hyper-tail_hyper+self.hyper_relations[relation]))
 
     def corrupt(self, head, tail, tph):
@@ -153,8 +156,9 @@ class transH():
                     grad_wrong + self.hyper_relations[relation]) * 2*coeff
                 grad_hyper = (grad_right-grad_wrong)*2
                 grad_norm = 4*np.dot((grad_right+self.hyper_relations[relation]), (self.entities[rel_tail]-self.entities[rel_head]))*self.relations[relation] -\
-                    4*np.dot((grad_wrong+self.hyper_relations[relation]), (self.entities[corr_tail]-self.entities[corr_head]))*self.relations[relation]
-                    # update
+                    4*np.dot((grad_wrong+self.hyper_relations[relation]), (
+                        self.entities[corr_tail]-self.entities[corr_head]))*self.relations[relation]
+                # update
                 grad_correct *= self.lr
                 batch_entities[rel_head] -= grad_correct * self.lr
                 batch_entities[rel_tail] += grad_correct * self.lr
@@ -178,7 +182,8 @@ class transH():
         for relation in batch_relations.keys():
             self.relations[relation] = self.norm(batch_relations[relation])
         for relation in batch_hyper_relations.keys():
-            self.hyper_relations[relation] = batch_hyper_relations[relation] # no norm here
+            # no norm here
+            self.hyper_relations[relation] = batch_hyper_relations[relation]
 
     def save(self, filename):
         data = [self.entities, self.relations]
@@ -193,11 +198,11 @@ class transH():
         print(f"Model loaded from {filename}")
 
     # the classic way is pretty slow due to enormous distance calculations
-    def hit(self, testdata, n: int = 10, filter=False) -> float:
+    def hit(self, testdata, n: int = 10, filter=False, ceiling: int = 100) -> float:
         assert not filter or self.contain
         hit = 0
         count = 1
-        for head, rel, tail in testdata:
+        for head, rel, tail in random.sample(testdata, ceiling):
             if count % 20 == 0:
                 print("%d/%d cases evaluated\t hit%d sum: %d rate: %.2f" %
                       (count, len(testdata), n, hit, hit/count))

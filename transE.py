@@ -159,11 +159,11 @@ class transE():
         print(f"Model loaded from {filename}")
 
     # the classic way is pretty slow due to enormous distance calculations
-    def hit(self, testdata, n: int = 10, filter=False) -> float:
+    def hit(self, testdata, n: int = 10, filter=False, ceiling: int = 100) -> float:
         assert not filter or self.contain
         hit = 0
         count = 1
-        for head, rel, tail in testdata:
+        for head, rel, tail in random.sample(testdata, ceiling):
             if count % 20 == 0:
                 print("%d/%d cases evaluated\t hit%d sum: %d rate: %.2f" %
                       (count, len(testdata), n, hit, hit/count))
