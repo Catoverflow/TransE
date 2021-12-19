@@ -160,6 +160,7 @@ class transE():
 
     # the classic way is pretty slow due to enormous distance calculations
     def hit(self, testdata, n: int = 10, filter=False) -> float:
+        assert not filter or self.contain
         hit = 0
         count = 1
         for head, rel, tail in testdata:
