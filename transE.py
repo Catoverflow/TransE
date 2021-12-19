@@ -5,6 +5,7 @@ import time
 import random
 import numpy as np
 from numpy.core.einsumfunc import einsum_path
+from numpy.lib.twodim_base import tri
 from numpy.random.mtrand import rand
 
 from data import load_entity_relation
@@ -21,6 +22,7 @@ class transE():
         self.lr = lr
         self.margin = margin
         self.loss = 0
+        self.contain = {(head, rel, tail) for head, rel, tail in triple_rel}
         print("transE object initalized")
 
     def emb_init(self) -> None:
@@ -66,79 +68,116 @@ class transE():
                 fake_tail = random.sample(self.entities.keys(), 1)[0]
             return head, fake_tail
 
-    def train(self, eprochs) -> None:
+    def train(self, eprochs: int, batch: int) -> None:
         # here we use Stochastic Gradient Descent.
-        print(f"transE training, batch size: 1, eproch: {eprochs}")
+        print(f"transE training, batch size: {batch}, eproch: {eprochs}")
+        interval = 2000//batch
         start_timer = time.time()
-        for epoch in range(eprochs):
-            if epoch % 400 == 0:
-                print(
-                    f"eproch: {epoch}, loss: {self.loss}, time: {time.time()-start_timer}")
+        for epoch in range(1, eprochs+1):
+            if epoch % interval == 0:
+                print("eproch: %d\t loss: %.2f\t time: %.2f" %
+                      (epoch, self.loss, time.time()-start_timer))
                 start_timer = time.time()
                 self.loss = 0
-            rel_triple = random.sample(self.triple_rels, 1)[0]
-            rel_triple.extend(list(self.corrupt(rel_triple[0], rel_triple[2])))
-            self.update_embedding(rel_triple, self.dist_l2)
+            rel_batch = random.sample(self.triple_rels, batch)
+            for rel_triple in rel_batch:
+                rel_triple.extend(
+                    list(self.corrupt(rel_triple[0], rel_triple[2])))
+            self.update_embedding(rel_batch, self.dist_l2)
 
-    def update_embedding(self, rel_batch, dist=dist_l2) -> None:
+    def update_embedding(self, rel_batchs, dist=dist_l2) -> None:
         # sometimes the random sample above will return list with 5 elements (should be 3)
-        rel_head, relation, rel_tail, corr_head, corr_tail = rel_batch[:5]
-        rel_dist = dist(
-            self.entities[rel_head], self.relations[relation], self.entities[rel_tail])
-        corr_dist = dist(
-            self.entities[corr_head], self.relations[relation], self.entities[corr_tail])
-        # hinge loss
-        loss = rel_dist-corr_dist+self.margin
-        if loss > 0:
-            self.loss += loss
-            grad_pos = 2 * \
-                (self.entities[rel_head] +
-                 self.relations[relation]-self.entities[rel_tail])
-            grad_neg = 2 * \
-                (self.entities[corr_head] +
-                 self.relations[relation]-self.entities[corr_tail])
+        # unknown bug
+        batch_entities = {}
+        batch_relations = {}
+        for rel_batch in rel_batchs:
+            rel_head, relation, rel_tail, corr_head, corr_tail = rel_batch[:5]
+            rel_dist = dist(
+                self.entities[rel_head], self.relations[relation], self.entities[rel_tail])
+            corr_dist = dist(
+                self.entities[corr_head], self.relations[relation], self.entities[corr_tail])
+            # hinge loss
+            loss = rel_dist-corr_dist+self.margin
+            if loss > 0:
+                self.loss += loss
 
-            # update
-            grad_pos *= self.lr
-            self.entities[rel_head] -= grad_pos
-            self.entities[rel_tail] += grad_pos
+                if rel_head not in batch_entities:
+                    # this will perform a copy indeed
+                    batch_entities[rel_head] = self.entities[rel_head]
+                if rel_tail not in batch_entities:
+                    batch_entities[rel_tail] = self.entities[rel_tail]
+                if relation not in batch_relations:
+                    batch_relations[relation] = self.relations[relation]
+                if corr_head not in batch_entities:
+                    # this will perform a copy indeed
+                    batch_entities[corr_head] = self.entities[corr_head]
+                if corr_tail not in batch_entities:
+                    # this will perform a copy indeed
+                    batch_entities[corr_tail] = self.entities[corr_tail]
 
-            # head entity replaced
-            grad_neg *= self.lr
-            if corr_head == rel_head:  # move away from wrong relationships
-                self.entities[rel_head] += grad_neg
-                self.entities[corr_tail] -= grad_neg
-            # tail entity replaced
-            else:
-                self.entities[corr_head] += grad_neg
-                self.entities[rel_tail] -= grad_neg
+                grad_pos = 2 * \
+                    (self.entities[rel_head] +
+                     self.relations[relation]-self.entities[rel_tail])
+                grad_neg = 2 * \
+                    (self.entities[corr_head] +
+                     self.relations[relation]-self.entities[corr_tail])
 
-            # relation update
-            self.relations[relation] -= grad_pos
-            self.relations[relation] += grad_neg
+                # update
+                grad_pos *= self.lr
+                batch_entities[rel_head] -= grad_pos
+                batch_entities[rel_tail] += grad_pos
+
+                # head entity replaced
+                grad_neg *= self.lr
+                if corr_head == rel_head:  # move away from wrong relationships
+                    batch_entities[rel_head] += grad_neg
+                    batch_entities[corr_tail] -= grad_neg
+                # tail entity replaced
+                else:
+                    batch_entities[corr_head] += grad_neg
+                    batch_entities[rel_tail] -= grad_neg
+
+                # relation update
+                batch_relations[relation] -= grad_pos
+                batch_relations[relation] += grad_neg
+
+        for entity in batch_entities.keys():
+            self.entities[entity] = batch_entities[entity]
+        for relation in batch_relations.keys():
+            self.relations[relation] = batch_relations[relation]
 
     def save(self, filename):
         data = [self.entities, self.relations]
         with open(filename, 'wb') as f:
             pickle.dump(data, f)
+        print(f"Model saved to {filename}")
 
     def load(self, filename):
         with open(filename, 'rb') as f:
             data = pickle.load(f)
         self.entities, self.relations = data
+        print(f"Model loaded from {filename}")
 
     # the classic way is pretty slow due to enormous distance calculations
-    def hit10_classic(self,testdata) -> float:
-        hit10 = 0
-        count = 0
+    def hit(self, testdata, n: int = 10, filter=False) -> float:
+        hit = 0
+        count = 1
         for head, rel, tail in testdata:
             if count % 20 == 0:
-                print(f"{count}/{len(testdata)} cases evaluated, hit10 sum: {hit10}")
+                print("%d/%d cases evaluated\t hit%d sum: %d rate: %.2f" %
+                      (count, len(testdata), n, hit, hit/count))
             assume_tail = self.entities[head] + self.relations[rel]
-            result = {np.sum(np.square(assume_tail - self.entities[entity])):entity for entity in self.entities.keys()}
-            result = dict(sorted(result.items())[:10])
+            result = {}
+            for entity in self.entities.keys():
+                # in this dataset, the triple in train will not occur in test/dev
+                # comment out `if` below and `self.contain` in __init__ if this cannot be satisfied
+                if filter and (head, rel, entity) in self.contain:
+                    continue
+                result[np.sum(
+                    np.square(assume_tail - self.entities[entity]))] = entity
+            result = dict(sorted(result.items())[:n])
             if tail in result.values():
-                hit10 += 1
+                hit += 1
             count += 1
-        hit10 /= len(testdata)
-        return hit10
+        hit /= len(testdata)
+        return hit
