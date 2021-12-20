@@ -198,15 +198,14 @@ class transH():
         print(f"Model loaded from {filename}")
 
     # the classic way is pretty slow due to enormous distance calculations
-    def hit(self, testdata, n: int = 10, filter=False, ceiling: int = 100) -> float:
+    def hit(self, testdata, n: int = 10, filter=False, ceiling: int = 500) -> float:
         assert not filter or self.contain
         hit = 0
         count = 1
         for head, rel, tail in random.sample(testdata, ceiling):
             if count % 20 == 0:
-                print("%d/%d cases evaluated\t hit%d sum: %d rate: %.2f" %
-                      (count, len(testdata), n, hit, hit/count))
-            assume_tail = self.entities[head] + self.relations[rel]
+                print("%d/%d tested\t hit@%d rate: %.2f" %
+                      (count, len(testdata), n, hit/count))
             result = {}
             for entity in self.entities.keys():
                 # in this dataset, the triple in train will not occur in test/dev
@@ -220,3 +219,19 @@ class transH():
             count += 1
         hit /= len(testdata)
         return hit
+
+    def emit_predict(self, testdata, savefile: str) -> None:
+        count = 1
+        with open(savefile, 'w') as f:
+            for head, rel, _ in testdata:
+                if count % 20 == 0:
+                    print(f'{count}/{len(testdata)} emitted')
+                result = {}
+                for entity in self.entities.keys():
+                    if (head, rel, entity) in self.contain:
+                        continue
+                    result[self.test_distance_score(
+                        head, rel, entity)] = entity
+                result = dict(sorted(result.items())[:5]).values()
+                f.write(','.join(result)+'\n')
+                count += 1
