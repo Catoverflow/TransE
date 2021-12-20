@@ -229,9 +229,6 @@ class transH():
             for head, rel, _ in testdata:
                 if count % 20 == 0:
                     print(f'{count}/{len(testdata)} emitted')
-                if count < 6756:
-                    count += 1
-                    continue
                 result = {}
                 try:
                     for entity in self.entities.keys():
