@@ -18,8 +18,8 @@ def main():
     parser.add_argument('-S', help='Save the trained model',
                         action='store_true', default=False)
     parser.add_argument('-lr', type=float,
-                        metavar='learning rate', default=0.01)
-    parser.add_argument('-mg', type=float, metavar='margin', default=1)
+                        help='learning rate', default=0.01)
+    parser.add_argument('-mg', type=float, help='margin', default=1)
     parser.add_argument('-H', help='use transH, default = transE',
                         action='store_true', default=False)
     parser.add_argument('-E', help='emit predict for testcases',
