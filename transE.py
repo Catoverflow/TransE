@@ -4,9 +4,6 @@ from os import stat
 import time
 import random
 import numpy as np
-from numpy.core.einsumfunc import einsum_path
-from numpy.lib.twodim_base import tri
-from numpy.random.mtrand import rand
 
 from data import load_entity_relation
 
