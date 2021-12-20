@@ -207,13 +207,16 @@ class transH():
                 print("%d/%d tested\t hit@%d rate: %.2f" %
                       (count, len(testdata), n, hit/count))
             result = {}
-            for entity in self.entities.keys():
-                # in this dataset, the triple in train will not occur in test/dev
-                # comment out `if` below and `self.contain` in __init__ if this cannot be satisfied
-                if filter and (head, rel, entity) in self.contain:
-                    continue
-                result[self.test_distance_score(head, rel, entity)] = entity
-            result = dict(sorted(result.items())[:n])
+            try:
+                for entity in self.entities.keys():
+                    # in this dataset, the triple in train will not occur in test/dev
+                    # comment out `if` below and `self.contain` in __init__ if this cannot be satisfied
+                    if filter and (head, rel, entity) in self.contain:
+                        continue
+                    result[self.test_distance_score(head, rel, entity)] = entity
+                result = dict(sorted(result.items())[:n])
+            except: # head / relation not occurred in training dataset
+                result = random.sample(self.entities.keys(), 5)
             if tail in result.values():
                 hit += 1
             count += 1
@@ -226,12 +229,18 @@ class transH():
             for head, rel, _ in testdata:
                 if count % 20 == 0:
                     print(f'{count}/{len(testdata)} emitted')
+                if count < 6756:
+                    count += 1
+                    continue
                 result = {}
-                for entity in self.entities.keys():
-                    if (head, rel, entity) in self.contain:
-                        continue
-                    result[self.test_distance_score(
-                        head, rel, entity)] = entity
-                result = dict(sorted(result.items())[:5]).values()
+                try:
+                    for entity in self.entities.keys():
+                        if (head, rel, entity) in self.contain:
+                            continue
+                        result[self.test_distance_score(
+                            head, rel, entity)] = entity
+                    result = dict(sorted(result.items())[:5]).values()
+                except:  # head / relation not occurred in training dataset
+                    result = random.sample(self.entities.keys(), 5)
                 f.write(','.join(result)+'\n')
                 count += 1

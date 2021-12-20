@@ -191,11 +191,14 @@ class transE():
                     print(f'{count}/{len(testdata)} emitted')
                 assume_tail = self.entities[head] + self.relations[rel]
                 result = {}
-                for entity in self.entities.keys():
-                    if (head, rel, entity) in self.contain:
-                        continue
-                    result[np.sum(
-                        np.square(assume_tail - self.entities[entity]))] = entity
-                result = dict(sorted(result.items())[:5]).values()
+                try:
+                    for entity in self.entities.keys():
+                        if (head, rel, entity) in self.contain:
+                            continue
+                        result[np.sum(
+                            np.square(assume_tail - self.entities[entity]))] = entity
+                    result = dict(sorted(result.items())[:5]).values()
+                except: # head / relation not in training dataset
+                    result = random.sample(self.entities.keys(), 5)
                 f.write(','.join(result)+'\n')
                 count += 1
